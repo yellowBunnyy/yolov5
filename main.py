@@ -32,20 +32,22 @@ category_maper = {
 
 recording_flag = False
 
-CONFIDENCE_THRESHOLD = 0.65
 
-camera_ip = os.getenv("camera_addr")
+# VENV
+CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
-print(os.getenv("recording_time"))
 RECORDING_TIME = int(os.getenv("recording_time"))
+CATEGORIES_TO_SEARCH: list[int] = list(map(int, os.getenv("category_name").split(",")))
 
-CATEGORY_TO_SEARCH = int(os.getenv("category_name")) # int
-
+CONFIDENCE_THRESHOLD = 0.65
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
-
 model.conf = CONFIDENCE_THRESHOLD
+
+
 video_writer = None
 
+
+# def get_category_from_list(boll)
 
 def initialize_video_writer(frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
     height, width, _ = frame.shape
@@ -53,18 +55,20 @@ def initialize_video_writer(frame:np.ndarray, output_path, fps=20.0) -> cv2.Vide
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     return video_writer
 
-def category_is_detected(predictions:np.array, searched_category:int)->bool | None:
+def category_is_detected(predictions:np.array, searched_category:list[int])->bool | None:
     global recording_flag
     global category_maper
     pred_np = predictions[:,4:]
     category_recognition_bool:bool = False
-    category_recognition_array = np.where(pred_np == searched_category)
-    if len(category_recognition_array[0]) > 0:
+    category_recognition_array:list[bool] = np.isin(searched_category, pred_np)
+    category_was_detected:bool = any(category_recognition_array)
+    category_detected:np.array = np.array(searched_category)[category_recognition_array]
+    if category_was_detected:
         category_recognition_bool = True
     if category_recognition_bool:
         if not recording_flag:
-            logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(searched_category)}")
-            print(f"from print recording started flag seted as true. Recrding object {category_maper.get(searched_category)}")
+            logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
+            print(f"from print recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
             recording_flag = True
             return True
         
@@ -73,8 +77,8 @@ def get_video_stream():
     global video_from_path
     global recording_flag
 
-    if camera_ip:
-        cap = cv2.VideoCapture(camera_ip)
+    if CAMERA_IP_ADDR:
+        cap = cv2.VideoCapture(CAMERA_IP_ADDR)
     elif video_from_path:
         video_from_path = os.path.join(os.getcwd(), video_from_path)
         cap = cv2.VideoCapture(video_from_path)
@@ -96,7 +100,7 @@ def get_video_stream():
         # Perform object detection
         results = model(img)
         predictions = results.xyxy[0].numpy()  # Convert to NumPy array for easier handling        
-        is_detected:bool = category_is_detected(predictions, CATEGORY_TO_SEARCH) # 0 is person ,16 dog
+        is_detected:bool = category_is_detected(predictions, CATEGORIES_TO_SEARCH) # 0 is person ,16 dog
 
         if is_detected:
             global video_writer
@@ -105,7 +109,7 @@ def get_video_stream():
             logger.info(f"start recording video at {recording_start_time}.")
             print(f"from print start recording video at {recording_start_time}.")
             time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
-            video_writer = initialize_video_writer(frame=frame, output_path=f"{category_maper.get(CATEGORY_TO_SEARCH)}_{time_as_str}.mp4")
+            video_writer = initialize_video_writer(frame=frame, output_path=f"output_video_{time_as_str}.mp4")
         
         if recording_flag and stop_time >= datetime.now():
             video_writer.write(frame)
