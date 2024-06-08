@@ -6,8 +6,11 @@ import cv2
 import torch
 from PIL import Image
 import numpy as np
+from logging_mod import logger
 
-print("starting!!")
+print("from print Starting")
+logger.info("Starting!!")
+
 app = FastAPI()
 
 category_maper = {
@@ -28,24 +31,21 @@ category_maper = {
 }
 
 recording_flag = False
+
 CONFIDENCE_THRESHOLD = 0.65
-# Replace with your camera's IP stream URL
+
 camera_ip = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
+print(os.getenv("recording_time"))
+RECORDING_TIME = int(os.getenv("recording_time"))
+
+CATEGORY_TO_SEARCH = int(os.getenv("category_name")) # int
 
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
 
 model.conf = CONFIDENCE_THRESHOLD
 video_writer = None
 
-def add_text(text:str, frame:np.ndarray) -> np.ndarray:
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    org = (50, 50)  # Bottom-left corner of the text string in the image
-    font_scale = 2
-    color = (255, 0, 0)  # Blue color in BGR
-    thickness = 2  # Line thickness of 2 px
-    frame = cv2.putText(frame, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
-    return frame
 
 def initialize_video_writer(frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
     height, width, _ = frame.shape
@@ -63,7 +63,8 @@ def category_is_detected(predictions:np.array, searched_category:int)->bool | No
         category_recognition_bool = True
     if category_recognition_bool:
         if not recording_flag:
-            print(f"recording started flag seted as true. Recrding object {category_maper.get(searched_category)}")
+            logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(searched_category)}")
+            print(f"from print recording started flag seted as true. Recrding object {category_maper.get(searched_category)}")
             recording_flag = True
             return True
         
@@ -71,6 +72,7 @@ def category_is_detected(predictions:np.array, searched_category:int)->bool | No
 def get_video_stream():
     global video_from_path
     global recording_flag
+
     if camera_ip:
         cap = cv2.VideoCapture(camera_ip)
     elif video_from_path:
@@ -94,22 +96,24 @@ def get_video_stream():
         # Perform object detection
         results = model(img)
         predictions = results.xyxy[0].numpy()  # Convert to NumPy array for easier handling        
-        is_detected:bool = category_is_detected(predictions, 0) # 0 is person
+        is_detected:bool = category_is_detected(predictions, CATEGORY_TO_SEARCH) # 0 is person ,16 dog
 
         if is_detected:
             global video_writer
             recording_start_time:datetime = datetime.now()
             stop_time:datetime = recording_start_time + timedelta(minutes=3)
-            print(f"start recording video at {recording_start_time}.")
+            logger.info(f"start recording video at {recording_start_time}.")
+            print(f"from print start recording video at {recording_start_time}.")
             time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
-            video_writer = initialize_video_writer(frame=frame, output_path=f"output_video_{time_as_str}.mp4")
+            video_writer = initialize_video_writer(frame=frame, output_path=f"{category_maper.get(CATEGORY_TO_SEARCH)}_{time_as_str}.mp4")
         
         if recording_flag and stop_time >= datetime.now():
             video_writer.write(frame)
         if recording_flag:
             if stop_time < datetime.now() and recording_flag:
                 video_writer.release()
-                print(f"stop recording video at {datetime.now()}.")
+                logger.info(f"stop recording video at {datetime.now()}.")
+                print(f"from print stop recording video at {datetime.now()}.")
                 recording_flag= False
 
         # Draw bounding boxes on the frame
