@@ -6,6 +6,7 @@ import cv2
 import torch
 from PIL import Image
 import numpy as np
+from typing import Tuple
 from logging_mod import logger
 
 print("from print Starting")
@@ -55,7 +56,7 @@ def initialize_video_writer(frame:np.ndarray, output_path, fps=20.0) -> cv2.Vide
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     return video_writer
 
-def category_is_detected(predictions:np.array, searched_category:list[int])->bool | None:
+def category_is_detected(predictions:np.array, searched_category:list[int]) -> Tuple[bool, str]:
     global recording_flag
     global category_maper
     pred_np = predictions[:,4:]
@@ -67,10 +68,12 @@ def category_is_detected(predictions:np.array, searched_category:list[int])->boo
         category_recognition_bool = True
     if category_recognition_bool:
         if not recording_flag:
+            detected_category_name = category_maper.get(next(iter(category_detected)))
             logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
             print(f"from print recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
             recording_flag = True
-            return True
+            return (True, detected_category_name)
+    return (None, None)
         
 
 def get_video_stream():
@@ -100,7 +103,7 @@ def get_video_stream():
         # Perform object detection
         results = model(img)
         predictions = results.xyxy[0].numpy()  # Convert to NumPy array for easier handling        
-        is_detected:bool = category_is_detected(predictions, CATEGORIES_TO_SEARCH) # 0 is person ,16 dog
+        is_detected, category_name = category_is_detected(predictions, CATEGORIES_TO_SEARCH)
 
         if is_detected:
             global video_writer
@@ -109,7 +112,7 @@ def get_video_stream():
             logger.info(f"start recording video at {recording_start_time}.")
             print(f"from print start recording video at {recording_start_time}.")
             time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
-            video_writer = initialize_video_writer(frame=frame, output_path=f"output_video_{time_as_str}.mp4")
+            video_writer = initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
         
         if recording_flag and stop_time >= datetime.now():
             video_writer.write(frame)
