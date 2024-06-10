@@ -34,6 +34,7 @@ category_maper = {
 # VENV
 CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
+VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
 RECORDING_TIME = int(os.getenv("recording_time", 3))
 CATEGORIES_TO_SEARCH: list[int] = list(map(int, os.getenv("category_name").split(",")))
 
@@ -57,8 +58,6 @@ class DetectCategory():
         return video_writer
 
     def category_is_detected(self, predictions:np.array, searched_category:list[int]) -> Tuple[bool, str]:
-        # global recording_flag
-        # global category_maper
         pred_np = predictions[:,4:]
         category_recognition_bool:bool = False
         category_recognition_array:list[bool] = np.isin(searched_category, pred_np)
@@ -77,14 +76,11 @@ class DetectCategory():
         
 
     def get_video_stream(self):
-        global video_from_path
-        # global recording_flag
-
+        
         if CAMERA_IP_ADDR:
             cap = cv2.VideoCapture(CAMERA_IP_ADDR)
-        elif video_from_path:
-            video_from_path = os.path.join(os.getcwd(), video_from_path)
-            cap = cv2.VideoCapture(video_from_path)
+        elif VIDEO_PATH:            
+            cap = cv2.VideoCapture(VIDEO_PATH)
         else:
             return {"response": "err check venv"}
 
