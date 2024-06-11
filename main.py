@@ -7,9 +7,9 @@ import torch
 from PIL import Image
 import numpy as np
 from typing import Tuple
-from logging_mod import logger
+from logging_module import LogginModule
 
-print("from print Starting")
+logger = LogginModule(app_name="yolov5_app").get_logger()
 logger.info("Starting!!")
 
 app = FastAPI()
@@ -68,8 +68,7 @@ class DetectCategory():
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(next(iter(category_detected)))
-                logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
-                print(f"from print recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")
+                logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")                
                 self.recording_flag = True
                 return (True, detected_category_name)
         return (None, None)
@@ -104,8 +103,7 @@ class DetectCategory():
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
                 stop_time:datetime = recording_start_time + timedelta(minutes=3)
-                logger.info(f"start recording video at {recording_start_time}.")
-                print(f"from print start recording video at {recording_start_time}.")
+                logger.info(f"start recording video at {recording_start_time}.")                
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
                 self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
             
@@ -115,7 +113,6 @@ class DetectCategory():
                 if stop_time < datetime.now() and self.recording_flag:
                     self.video_writer.release()
                     logger.info(f"stop recording video at {datetime.now()}.")
-                    print(f"from print stop recording video at {datetime.now()}.")
                     self.recording_flag= False
 
             # Draw bounding boxes on the frame
@@ -142,5 +139,5 @@ async def video_feed():
 if __name__ == "__main__":
     import uvicorn
 
-    print("uvicorn started")
+    logger.info("uvicorn started.")
     uvicorn.run(app, host="0.0.0.0", port=8000)
