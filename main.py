@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 import os
 from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse
@@ -36,7 +37,11 @@ CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
 RECORDING_TIME = int(os.getenv("recording_time", 3))
-CATEGORIES_TO_SEARCH: list[int] = list(map(int, os.getenv("category_name").split(",")))
+categories_as_str = os.getenv("category_name", None)
+CATEGORIES_TO_SEARCH = []
+if categories_as_str:
+    CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
+SHOW_FPS = bool(os.getenv("show_fps", False))
 
 #model
 CONFIDENCE_THRESHOLD = 0.6
@@ -51,6 +56,14 @@ class DetectCategory():
         self.recording_flag:bool = False
 
 
+    def get_fps(self,):
+        if self.fps_elapsed_time >= 1.0:
+            fps = self.frame_counter / self.fps_elapsed_time
+            print(f"FPS: {fps}")            
+            self.frame_counter = 0
+            self.fps_start_time = time.time()
+
+        
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
         height, width, _ = frame.shape
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4
@@ -85,9 +98,21 @@ class DetectCategory():
 
         if not cap.isOpened():
             return Response("Camera stream not accessible", status_code=404)
-
+        
+        #region for fps
+        if SHOW_FPS:
+            self.frame_counter = 0
+            self.fps_start_time = time.time()
+        #endregion
         while True:
             success, frame = cap.read()
+
+            #region for fps
+            if SHOW_FPS:
+                self.frame_counter += 1
+                self.fps_elapsed_time = time.time() - self.fps_start_time
+                self.get_fps()
+            #endregion
 
             if not success:
                 return Response("Failed to capture image", status_code=500)
