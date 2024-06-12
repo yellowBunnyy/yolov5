@@ -43,9 +43,13 @@ if categories_as_str:
     CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
 SHOW_FPS = bool(os.getenv("show_fps", False))
 
+#device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 #model
 CONFIDENCE_THRESHOLD = 0.6
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
+model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
 
@@ -122,8 +126,11 @@ class DetectCategory():
 
             # Perform object detection
             results = model(img)
-            predictions = results.xyxy[0].numpy()  # Convert to NumPy array for easier handling        
-            is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
+            
+            is_detected = False
+            if CATEGORIES_TO_SEARCH:
+                predictions = results.xyxy[0].numpy()
+                is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
