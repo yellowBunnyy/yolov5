@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 import os
 from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse
@@ -36,11 +37,19 @@ CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
 RECORDING_TIME = int(os.getenv("recording_time", 3))
-CATEGORIES_TO_SEARCH: list[int] = list(map(int, os.getenv("category_name").split(",")))
+categories_as_str = os.getenv("category_name", None)
+CATEGORIES_TO_SEARCH = []
+if categories_as_str:
+    CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
+SHOW_FPS = bool(os.getenv("show_fps", False))
+
+#device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #model
 CONFIDENCE_THRESHOLD = 0.6
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
+model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
 
@@ -51,6 +60,14 @@ class DetectCategory():
         self.recording_flag:bool = False
 
 
+    def get_fps(self,):
+        if self.fps_elapsed_time >= 1.0:
+            fps = self.frame_counter / self.fps_elapsed_time
+            print(f"FPS: {fps}")            
+            self.frame_counter = 0
+            self.fps_start_time = time.time()
+
+        
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
         height, width, _ = frame.shape
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4
@@ -85,9 +102,21 @@ class DetectCategory():
 
         if not cap.isOpened():
             return Response("Camera stream not accessible", status_code=404)
-
+        
+        #region for fps
+        if SHOW_FPS:
+            self.frame_counter = 0
+            self.fps_start_time = time.time()
+        #endregion
         while True:
             success, frame = cap.read()
+
+            #region for fps
+            if SHOW_FPS:
+                self.frame_counter += 1
+                self.fps_elapsed_time = time.time() - self.fps_start_time
+                self.get_fps()
+            #endregion
 
             if not success:
                 return Response("Failed to capture image", status_code=500)
@@ -97,8 +126,11 @@ class DetectCategory():
 
             # Perform object detection
             results = model(img)
-            predictions = results.xyxy[0].numpy()  # Convert to NumPy array for easier handling        
-            is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
+            
+            is_detected = False
+            if CATEGORIES_TO_SEARCH:
+                predictions = results.xyxy[0].numpy()
+                is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
