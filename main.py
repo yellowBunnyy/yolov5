@@ -41,16 +41,27 @@ categories_as_str = os.getenv("category_name", None)
 CATEGORIES_TO_SEARCH = []
 if categories_as_str:
     CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
+    category_mgs = "\n".join(category_maper.get(cat) for cat in CATEGORIES_TO_SEARCH)
+    logger.info(f"Category to detect: \n{category_mgs}.")
 SHOW_FPS = bool(os.getenv("show_fps", False))
+GPU_ON = bool(os.getenv("gpu_on", False))
+
 
 #device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if GPU_ON:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device == "cpu":
+        raise ValueError("Can't set GPU! Switch to CPU")
+    
+logger.info(f"Device detected: {device}")
 
 #model
-CONFIDENCE_THRESHOLD = 0.6
+CONFIDENCE_THRESHOLD = 0.75
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
+
+
 
 
 class DetectCategory():
@@ -75,6 +86,9 @@ class DetectCategory():
         return video_writer
 
     def category_is_detected(self, predictions:np.array, searched_category:list[int]) -> Tuple[bool, str]:
+        # if have empty prediction
+        if not len(predictions):
+            return (None, None)
         pred_np = predictions[:,4:]
         category_recognition_bool:bool = False
         category_recognition_array:list[bool] = np.isin(searched_category, pred_np)
@@ -85,7 +99,6 @@ class DetectCategory():
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(next(iter(category_detected)))
-                logger.info(f"recording started flag seted as true. Recrding object {category_maper.get(next(iter(category_detected)))}")                
                 self.recording_flag = True
                 return (True, detected_category_name)
         return (None, None)
@@ -129,14 +142,17 @@ class DetectCategory():
             
             is_detected = False
             if CATEGORIES_TO_SEARCH:
-                predictions = results.xyxy[0].numpy()
+                if not GPU_ON:
+                    predictions = results.xyxy[0].numpy()
+                else:
+                    predictions = np.array(results.xyxy[0].tolist())
                 is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
                 stop_time:datetime = recording_start_time + timedelta(minutes=3)
-                logger.info(f"start recording video at {recording_start_time}.")                
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
+                logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
                 self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
             
             if self.recording_flag and stop_time >= datetime.now():
@@ -144,7 +160,7 @@ class DetectCategory():
             if self.recording_flag:
                 if stop_time < datetime.now() and self.recording_flag:
                     self.video_writer.release()
-                    logger.info(f"stop recording video at {datetime.now()}.")
+                    logger.info(f"stop recording video at {datetime.now()} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
                     self.recording_flag= False
 
             # Draw bounding boxes on the frame
