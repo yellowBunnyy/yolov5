@@ -45,6 +45,8 @@ if categories_as_str:
     logger.info(f"Category to detect: \n{category_mgs}.")
 SHOW_FPS = bool(os.getenv("show_fps", False))
 GPU_ON = bool(os.getenv("gpu_on", False))
+CONFIDENCE_THRESHOLD:float = float(os.getenv("conf_threshold", .5))
+logger.info(f"Seted confidence threshold:\t{CONFIDENCE_THRESHOLD}.")
 
 
 #device
@@ -56,7 +58,6 @@ if GPU_ON:
 logger.info(f"Device detected: {device}")
 
 #model
-CONFIDENCE_THRESHOLD = 0.75
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
@@ -147,10 +148,12 @@ class DetectCategory():
                 else:
                     predictions = np.array(results.xyxy[0].tolist())
                 is_detected, category_name = self.category_is_detected(predictions, CATEGORIES_TO_SEARCH)
+                if category_name:
+                    last_detected_category_name = category_name
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
-                stop_time:datetime = recording_start_time + timedelta(minutes=3)
+                stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_TIME)
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
                 logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
                 self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
@@ -160,7 +163,7 @@ class DetectCategory():
             if self.recording_flag:
                 if stop_time < datetime.now() and self.recording_flag:
                     self.video_writer.release()
-                    logger.info(f"stop recording video at {datetime.now()} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
+                    logger.info(f"stop recording video at {datetime.now()} ==> {last_detected_category_name if last_detected_category_name else 'output_video'}_{time_as_str}.mp4")
                     self.recording_flag= False
 
             # Draw bounding boxes on the frame
