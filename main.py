@@ -37,6 +37,7 @@ category_maper = {
 # VENV
 DEBUG: bool = bool(os.getenv("debug", False))
 RECORD_VIDEO: bool = bool(os.getenv("record_video", False))
+logger.info(f"Record Video: {RECORD_VIDEO}")
 #region DEVICE
 GPU_ON = bool(os.getenv("gpu_on", False))
 if GPU_ON:
@@ -48,7 +49,7 @@ logger.info(f"Device detected: {device}")
 #region MODEL
 MODEL_TYPE = os.getenv("model_type", "yolov5s")
 CONFIDENCE_THRESHOLD:float = float(os.getenv("conf_threshold", .5))
-logger.info(f"Seted model: {MODEL_TYPE}.\nSeted confidence threshold:\t{CONFIDENCE_THRESHOLD}.")
+logger.info(f"Seted model: {MODEL_TYPE}.Seted confidence threshold:\t{CONFIDENCE_THRESHOLD}.")
 #endregion
 #region CAMERA
 CAMERA_IP_ADDR = os.getenv("camera_addr")
@@ -68,7 +69,7 @@ SHOW_FPS: bool = bool(os.getenv("show_fps", False))
 
 
 #model
-model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
+model = torch.hub.load("ultralytics/yolov8", MODEL_TYPE)
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
@@ -106,7 +107,7 @@ class DetectCategory():
         if category_was_detected:
             category_recognition_bool = True
             if DEBUG:
-                logger.debug(f"Detected {category_maper.get(next(iter(category_detected)))} prediction_score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)}")
+                logger.debug(f"{category_maper.get(next(iter(category_detected))).upper()} score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)} file: {VIDEO_PATH if VIDEO_PATH else CAMERA_IP_ADDR}")
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(next(iter(category_detected)))
