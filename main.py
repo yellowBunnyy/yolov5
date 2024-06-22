@@ -8,9 +8,11 @@ import torch
 from PIL import Image
 import numpy as np
 from typing import Tuple
+import logging
 from logging_module import LogginModule
 
-logger = LogginModule(app_name="yolov5_app").get_logger()
+
+logger = LogginModule(app_name="yolov5_app", level=logging.DEBUG).get_logger()
 logger.info("Starting!!")
 
 app = FastAPI()
@@ -33,36 +35,42 @@ category_maper = {
 }
 
 # VENV
+DEBUG: bool = bool(os.getenv("debug", False))
+RECORD_VIDEO: bool = bool(os.getenv("record_video", False))
+#region DEVICE
+GPU_ON = bool(os.getenv("gpu_on", False))
+if GPU_ON:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device == "cpu":
+        raise ValueError("Can't set GPU! Switch to CPU")    
+logger.info(f"Device detected: {device}")
+#endregion
+#region MODEL
+MODEL_TYPE = os.getenv("model_type", "yolov5s")
+CONFIDENCE_THRESHOLD:float = float(os.getenv("conf_threshold", .5))
+logger.info(f"Seted model: {MODEL_TYPE}.\nSeted confidence threshold:\t{CONFIDENCE_THRESHOLD}.")
+#endregion
+#region CAMERA
 CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
 RECORDING_TIME = int(os.getenv("recording_time", 3))
 categories_as_str = os.getenv("category_name", None)
+#endregion
+#region CATEGORIES
 CATEGORIES_TO_SEARCH = []
 if categories_as_str:
     CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
-    category_mgs = "\n".join(category_maper.get(cat) for cat in CATEGORIES_TO_SEARCH)
-    logger.info(f"Category to detect: \n{category_mgs}.")
-SHOW_FPS = bool(os.getenv("show_fps", False))
-GPU_ON = bool(os.getenv("gpu_on", False))
-CONFIDENCE_THRESHOLD:float = float(os.getenv("conf_threshold", .5))
-logger.info(f"Seted confidence threshold:\t{CONFIDENCE_THRESHOLD}.")
+    category_mgs = ", ".join(category_maper.get(cat) for cat in CATEGORIES_TO_SEARCH)
+    logger.info(f"Category to detect: {category_mgs}.")
+#endregion
+SHOW_FPS: bool = bool(os.getenv("show_fps", False))
 
-
-#device
-if GPU_ON:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device == "cpu":
-        raise ValueError("Can't set GPU! Switch to CPU")
-    
-logger.info(f"Device detected: {device}")
 
 #model
-model = torch.hub.load("ultralytics/yolov5", "yolov5s")
+model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
-
-
 
 
 class DetectCategory():
@@ -97,6 +105,8 @@ class DetectCategory():
         category_detected:np.array = np.array(searched_category)[category_recognition_array]
         if category_was_detected:
             category_recognition_bool = True
+            if DEBUG:
+                logger.debug(f"Detected {category_maper.get(next(iter(category_detected)))} prediction_score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)}")
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(next(iter(category_detected)))
@@ -154,17 +164,18 @@ class DetectCategory():
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
                 stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_TIME)
-                time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")
-                logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
-                self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
-            
-            if self.recording_flag and stop_time >= datetime.now():
-                self.video_writer.write(frame)
-            if self.recording_flag:
-                if stop_time < datetime.now() and self.recording_flag:
-                    self.video_writer.release()
-                    logger.info(f"stop recording video at {datetime.now()} ==> {last_detected_category_name if last_detected_category_name else 'output_video'}_{time_as_str}.mp4")
-                    self.recording_flag= False
+                time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")                
+                if RECORD_VIDEO:
+                    logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
+                    self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
+            if RECORD_VIDEO:
+                if self.recording_flag and stop_time >= datetime.now():
+                    self.video_writer.write(frame)
+                if self.recording_flag:
+                    if stop_time < datetime.now() and self.recording_flag:                    
+                        self.video_writer.release()
+                        logger.info(f"stop recording video at {datetime.now()} ==> {last_detected_category_name if last_detected_category_name else 'output_video'}_{time_as_str}.mp4")
+                        self.recording_flag= False
 
             # Draw bounding boxes on the frame
             annotated_frame = np.squeeze(results.render())
