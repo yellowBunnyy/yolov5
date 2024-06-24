@@ -10,12 +10,25 @@ import numpy as np
 from typing import Tuple
 import logging
 from logging_module import LogginModule
+from dataclasses import dataclass
 
 
 logger = LogginModule(app_name="yolov5_app", level=logging.DEBUG).get_logger()
 logger.info("Starting!!")
 
 app = FastAPI()
+
+#region Colors
+@dataclass
+class Color:
+    color: str
+    bbox: Tuple[int, int, int, int]
+
+basic_colors = {0: Color(color="red", bbox=(0, 0, 255)),
+                2: Color(color="green", bbox=(0, 255, 0)),
+                16: Color(color="blue", bbox=(255, 0, 0)),
+                "default": Color(color="gray",bbox=(192, 192, 192))}
+#endregion
 
 category_maper = {
     0: "person",
@@ -55,11 +68,13 @@ logger.info(f"Seted model: {MODEL_TYPE}.Seted confidence threshold:\t{CONFIDENCE
 CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
-RECORDING_TIME = int(os.getenv("recording_time", 3))
-categories_as_str = os.getenv("category_name", None)
+RECORDING_MINUTES = int(os.getenv("recording_minutes", 0))
+RECORDING_SECONDS = int(os.getenv("recording_seconds", 0))
+DRAW_BOXES:bool = bool(os.getenv("draw_boxes", False))
 #endregion
 #region CATEGORIES
 CATEGORIES_TO_SEARCH = []
+categories_as_str = os.getenv("category_name", None)
 if categories_as_str:
     CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
     category_mgs = ", ".join(category_maper.get(cat) for cat in CATEGORIES_TO_SEARCH)
@@ -69,7 +84,7 @@ SHOW_FPS: bool = bool(os.getenv("show_fps", False))
 
 
 #model
-model = torch.hub.load("ultralytics/yolov8", MODEL_TYPE)
+model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
@@ -87,6 +102,23 @@ class DetectCategory():
             print(f"FPS: {fps}")            
             self.frame_counter = 0
             self.fps_start_time = time.time()
+
+
+    def draw_boxes_on_frame(self, results, frame, searched_cls):        
+        result = results.xyxy[0]
+        # test_only_one_class = next(iter(searched_cls))
+        # result = result[result[:, -1] == test_only_one_class]
+        if not len(result):
+            return        
+        for *box, conf, cls in result:  # x1, y1, x2, y2, confidence, class
+            x1, y1, x2, y2 = map(int, box)
+            label = f"{model.names[int(cls)]} {conf:.2f}"
+            # Draw bounding box and label on the frame
+            cls = int(cls.item())
+            if cls not in basic_colors.keys():
+                cls = "default"
+            cv2.rectangle(frame, (x1, y1), (x2, y2), basic_colors.get(cls).bbox, 1)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, basic_colors.get(cls).bbox, 2)
 
         
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
@@ -151,6 +183,9 @@ class DetectCategory():
 
             # Perform object detection
             results = model(img)
+
+            if RECORD_VIDEO and DRAW_BOXES:
+                self.draw_boxes_on_frame(frame=frame, results=results, searched_cls=CATEGORIES_TO_SEARCH)
             
             is_detected = False
             if CATEGORIES_TO_SEARCH:
@@ -164,10 +199,10 @@ class DetectCategory():
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
-                stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_TIME)
+                stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_MINUTES, seconds=RECORDING_SECONDS)
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")                
                 if RECORD_VIDEO:
-                    logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
+                    logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")                    
                     self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
             if RECORD_VIDEO:
                 if self.recording_flag and stop_time >= datetime.now():
