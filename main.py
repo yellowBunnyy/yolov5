@@ -26,7 +26,8 @@ class Color:
 
 basic_colors = {0: Color(color="red", bbox=(0, 0, 255)),
                 2: Color(color="green", bbox=(0, 255, 0)),
-                16: Color(color="blue", bbox=(255, 0, 0))}
+                16: Color(color="blue", bbox=(255, 0, 0)),
+                "default": Color(color="gray",bbox=(192, 192, 192))}
 #endregion
 
 category_maper = {
@@ -113,6 +114,9 @@ class DetectCategory():
             x1, y1, x2, y2 = map(int, box)
             label = f"{model.names[int(cls)]} {conf:.2f}"
             # Draw bounding box and label on the frame
+            cls = int(cls.item())
+            if cls not in basic_colors.keys():
+                cls = "default"
             cv2.rectangle(frame, (x1, y1), (x2, y2), basic_colors.get(cls).bbox, 1)
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, basic_colors.get(cls).bbox, 2)
 
