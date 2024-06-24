@@ -55,7 +55,8 @@ logger.info(f"Seted model: {MODEL_TYPE}.Seted confidence threshold:\t{CONFIDENCE
 CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
-RECORDING_TIME = int(os.getenv("recording_time", 3))
+RECORDING_MINUTES = int(os.getenv("recording_minute", 0))
+RECORDING_SECONDS = int(os.getenv("recording_seconds", 0))
 categories_as_str = os.getenv("category_name", None)
 DRAW_BOXES:bool = bool(os.getenv("draw_boxes", False))
 #endregion
@@ -90,18 +91,18 @@ class DetectCategory():
             self.fps_start_time = time.time()
 
 
-    def draw_boxes_on_frame(self, results, frame, searched_cls):
-        test_only_one_class = next(iter(searched_cls))
-        tensor_ = results.xyxy[0]
-        result = tensor_[tensor_[:, -1] == test_only_one_class] 
+    def draw_boxes_on_frame(self, results, frame, searched_cls):        
+        result = results.xyxy[0]
+        # test_only_one_class = next(iter(searched_cls))
+        # result = result[result[:, -1] == test_only_one_class]
         if not len(result):
             return        
         for *box, conf, cls in result:  # x1, y1, x2, y2, confidence, class
             x1, y1, x2, y2 = map(int, box)
             label = f"{model.names[int(cls)]} {conf:.2f}"        
-        # Draw bounding box and label on the frame
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            # Draw bounding box and label on the frame
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
         
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
@@ -182,7 +183,7 @@ class DetectCategory():
 
             if is_detected:                
                 recording_start_time:datetime = datetime.now()
-                stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_TIME)
+                stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_MINUTES, seconds=RECORDING_SECONDS)
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")                
                 if RECORD_VIDEO:
                     logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")                    
