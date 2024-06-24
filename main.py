@@ -57,6 +57,7 @@ video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
 RECORDING_TIME = int(os.getenv("recording_time", 3))
 categories_as_str = os.getenv("category_name", None)
+DRAW_BOXES:bool = bool(os.getenv("draw_boxes", False))
 #endregion
 #region CATEGORIES
 CATEGORIES_TO_SEARCH = []
@@ -69,7 +70,7 @@ SHOW_FPS: bool = bool(os.getenv("show_fps", False))
 
 
 #model
-model = torch.hub.load("ultralytics/yolov8", MODEL_TYPE)
+model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
@@ -87,6 +88,20 @@ class DetectCategory():
             print(f"FPS: {fps}")            
             self.frame_counter = 0
             self.fps_start_time = time.time()
+
+
+    def draw_boxes_on_frame(self, results, frame, searched_cls):
+        test_only_one_class = next(iter(searched_cls))
+        tensor_ = results.xyxy[0]
+        result = tensor_[tensor_[:, -1] == test_only_one_class] 
+        if not len(result):
+            return        
+        for *box, conf, cls in result:  # x1, y1, x2, y2, confidence, class
+            x1, y1, x2, y2 = map(int, box)
+            label = f"{model.names[int(cls)]} {conf:.2f}"        
+        # Draw bounding box and label on the frame
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
         
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
@@ -151,6 +166,9 @@ class DetectCategory():
 
             # Perform object detection
             results = model(img)
+
+            if RECORD_VIDEO and DRAW_BOXES:
+                self.draw_boxes_on_frame(frame=frame, results=results, searched_cls=CATEGORIES_TO_SEARCH)
             
             is_detected = False
             if CATEGORIES_TO_SEARCH:
@@ -167,7 +185,7 @@ class DetectCategory():
                 stop_time:datetime = recording_start_time + timedelta(minutes=RECORDING_TIME)
                 time_as_str:str = recording_start_time.strftime("%Y_%m_%d__%H_%M")                
                 if RECORD_VIDEO:
-                    logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")
+                    logger.info(f"start recording video at {recording_start_time} ==> {category_name if category_name else 'output_video'}_{time_as_str}.mp4")                    
                     self.video_writer = self.initialize_video_writer(frame=frame, output_path=f"{category_name if category_name else 'output_video'}_{time_as_str}.mp4")
             if RECORD_VIDEO:
                 if self.recording_flag and stop_time >= datetime.now():
