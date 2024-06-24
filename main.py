@@ -10,12 +10,24 @@ import numpy as np
 from typing import Tuple
 import logging
 from logging_module import LogginModule
+from dataclasses import dataclass
 
 
 logger = LogginModule(app_name="yolov5_app", level=logging.DEBUG).get_logger()
 logger.info("Starting!!")
 
 app = FastAPI()
+
+#region Colors
+@dataclass
+class Color:
+    color: str
+    bbox: Tuple[int, int, int, int]
+
+basic_colors = {0: Color(color="red", bbox=(0, 0, 255)),
+                2: Color(color="green", bbox=(0, 255, 0)),
+                16: Color(color="blue", bbox=(255, 0, 0))}
+#endregion
 
 category_maper = {
     0: "person",
@@ -99,10 +111,10 @@ class DetectCategory():
             return        
         for *box, conf, cls in result:  # x1, y1, x2, y2, confidence, class
             x1, y1, x2, y2 = map(int, box)
-            label = f"{model.names[int(cls)]} {conf:.2f}"        
+            label = f"{model.names[int(cls)]} {conf:.2f}"
             # Draw bounding box and label on the frame
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), basic_colors.get(cls).bbox, 1)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, basic_colors.get(cls).bbox, 2)
 
         
     def initialize_video_writer(self, frame:np.ndarray, output_path, fps=20.0) -> cv2.VideoWriter:
