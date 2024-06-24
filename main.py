@@ -55,13 +55,13 @@ logger.info(f"Seted model: {MODEL_TYPE}.Seted confidence threshold:\t{CONFIDENCE
 CAMERA_IP_ADDR = os.getenv("camera_addr")
 video_from_path = os.getenv("video_from_path")
 VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else None
-RECORDING_MINUTES = int(os.getenv("recording_minute", 0))
+RECORDING_MINUTES = int(os.getenv("recording_minutes", 0))
 RECORDING_SECONDS = int(os.getenv("recording_seconds", 0))
-categories_as_str = os.getenv("category_name", None)
 DRAW_BOXES:bool = bool(os.getenv("draw_boxes", False))
 #endregion
 #region CATEGORIES
 CATEGORIES_TO_SEARCH = []
+categories_as_str = os.getenv("category_name", None)
 if categories_as_str:
     CATEGORIES_TO_SEARCH: list[int] = list(map(int, categories_as_str.split(",")))
     category_mgs = ", ".join(category_maper.get(cat) for cat in CATEGORIES_TO_SEARCH)
