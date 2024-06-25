@@ -56,7 +56,9 @@ GPU_ON = bool(os.getenv("gpu_on", False))
 if GPU_ON:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device == "cpu":
-        raise ValueError("Can't set GPU! Switch to CPU")    
+        raise ValueError("Can't set GPU! Switch to CPU")
+else:
+    device = "cpu"
 logger.info(f"Device detected: {device}")
 #endregion
 #region MODEL
