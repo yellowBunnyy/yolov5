@@ -13,11 +13,6 @@ from logging_module import LogginModule
 from dataclasses import dataclass
 
 
-logger = LogginModule(app_name="yolov5_app", level=logging.DEBUG).get_logger()
-logger.info("Starting!!")
-
-app = FastAPI()
-
 #region Colors
 @dataclass
 class Color:
@@ -48,6 +43,12 @@ category_maper = {
 }
 
 # VENV
+#region LOGGER
+OUTPUT_LOG_PATH:str|bool = os.getenv("output_log_file_path", False)
+logger = LogginModule(app_name="yolov5_app", output_logging_file_name=OUTPUT_LOG_PATH, level=logging.DEBUG).get_logger()
+logger.info("Starting!!")
+#endregion
+
 DEBUG: bool = bool(os.getenv("debug", False))
 RECORD_VIDEO: bool = bool(os.getenv("record_video", False))
 logger.info(f"Record Video: {RECORD_VIDEO}")
@@ -73,6 +74,9 @@ VIDEO_PATH = os.path.join(os.getcwd(), video_from_path) if video_from_path else 
 RECORDING_MINUTES = int(os.getenv("recording_minutes", 0))
 RECORDING_SECONDS = int(os.getenv("recording_seconds", 0))
 DRAW_BOXES:bool = bool(os.getenv("draw_boxes", False))
+if not CAMERA_IP_ADDR and not VIDEO_PATH:
+    logger.error("No stream and video path source!")
+    raise Exception("No stream and video path source!")
 #endregion
 #region CATEGORIES
 CATEGORIES_TO_SEARCH = []
@@ -85,11 +89,14 @@ if categories_as_str:
 SHOW_FPS: bool = bool(os.getenv("show_fps", False))
 
 
+
 #model
 model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
 model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
+#fastAPI
+app = FastAPI()
 
 class DetectCategory():
 

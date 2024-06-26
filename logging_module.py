@@ -23,7 +23,7 @@ class LogginModule():
         self.logger = logging.getLogger(app_name if app_name else __name__)
         self.logger.setLevel(level)
         self.console_handler = logging.StreamHandler()
-        self.file_handler = logging.FileHandler(output_logging_file_name if output_logging_file_name else f"{app_name}_{__name__}.log" )
+        self.file_handler = logging.FileHandler(f"{output_logging_file_name}/{app_name}_{__name__}.log" if output_logging_file_name else f"{app_name}_{__name__}.log" )
         self.console_handler.setLevel(level)
         self.file_handler.setLevel(level)
         self.logging_format()
