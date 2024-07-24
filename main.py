@@ -3,14 +3,14 @@ import time
 import os
 from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse
-import cv2
-import torch
 from PIL import Image
 import numpy as np
 from typing import Tuple
 import logging
 from logging_module import LogginModule
 from dataclasses import dataclass
+import cv2
+from ultralytics import YOLO
 
 
 #region Colors
@@ -54,13 +54,13 @@ RECORD_VIDEO: bool = bool(os.getenv("record_video".upper(), False))
 logger.info(f"Record Video: {RECORD_VIDEO}")
 #region DEVICE
 GPU_ON = bool(os.getenv("gpu_on".upper(), False))
-if GPU_ON:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device == "cpu":
-        raise ValueError("Can't set GPU! Switch to CPU")
-else:
-    device = "cpu"
-logger.info(f"Device detected: {device}")
+# if GPU_ON:
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     if device == "cpu":
+#         raise ValueError("Can't set GPU! Switch to CPU")
+# else:
+#     device = "cpu"
+logger.info(f"Device detected: ...")
 #endregion
 #region MODEL
 MODEL_TYPE = os.getenv("model_type".upper(), "yolov5s")
@@ -92,8 +92,12 @@ SHOW_FPS: bool = bool(os.getenv("SHOW_FPS", False))
 
 
 #model
-model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
-model.to(device)
+# yolov8n.pt
+model = YOLO("yolov8n.pt")
+
+
+# model = torch.hub.load("ultralytics/yolov5", MODEL_TYPE)
+# model.to(device)
 model.conf = CONFIDENCE_THRESHOLD
 
 #fastAPI
@@ -224,7 +228,7 @@ class DetectCategory():
                         self.recording_flag= False
 
             # Draw bounding boxes on the frame
-            annotated_frame = np.squeeze(results.render())
+            annotated_frame = np.squeeze(results[0].orig_img)
             annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
 
             # Encode the frame as JPEG
