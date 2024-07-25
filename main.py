@@ -196,7 +196,7 @@ class DetectCategory():
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
             # Perform object detection
-            results = model(img)
+            results = model.predict(img, conf=CONFIDENCE_THRESHOLD, verbose=False)
 
             if RECORD_VIDEO and DRAW_BOXES:
                 self.draw_boxes_on_frame(frame=frame, results=results, searched_cls=CATEGORIES_TO_SEARCH)
@@ -228,7 +228,10 @@ class DetectCategory():
                         self.recording_flag= False
 
             # Draw bounding boxes on the frame
-            annotated_frame = np.squeeze(results[0].orig_img)
+            im_bgr = next(iter(results)).plot(conf=True)
+            im_rgb = Image.fromarray(im_bgr[..., ::-1])
+
+            annotated_frame = np.squeeze(im_rgb)
             annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
 
             # Encode the frame as JPEG
