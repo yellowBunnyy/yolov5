@@ -55,7 +55,7 @@ logger = LogginModule(
 logger.info("Starting!!")
 # endregion
 
-DEBUG: bool = bool(os.getenv("debug", False))
+DEBUG: bool = bool(os.getenv("debug".upper(), False))
 RECORD_VIDEO: bool = bool(os.getenv("record_video".upper(), False))
 logger.info(f"Record Video: {RECORD_VIDEO}")
 # region DEVICE
@@ -126,13 +126,12 @@ class DetectCategory:
             self.frame_counter = 0
             self.fps_start_time = time.time()
 
-    def draw_boxes_on_frame_v8(self, results, frame, searched_cls):
-        result = next(iter(results))
-        if not len(result):
+    def draw_boxes_on_frame_v8(self, results, frame):
+        if not len(results):
             return
-        boxes = result.boxes.xyxy.numpy()  # Get the bounding box coordinates
-        confidences = result.boxes.conf.numpy()  # Get the confidence scores
-        class_ids = result.boxes.cls.numpy()
+        boxes = results.boxes.xyxy.numpy()  # Get the bounding box coordinates
+        confidences = results.boxes.conf.numpy()  # Get the confidence scores
+        class_ids = results.boxes.cls.numpy()
         class_names = model.names
         # Draw boxes on the frame
         for box, confidence, cls in zip(boxes, confidences, class_ids):
@@ -155,31 +154,6 @@ class DetectCategory:
                 2,
             )
 
-    def draw_boxes_on_frame(self, results, frame, searched_cls):
-        result = results.xyxy[0]
-
-        # test_only_one_class = next(iter(searched_cls))
-        # result = result[result[:, -1] == test_only_one_class]
-        if not len(result):
-            return
-        for *box, conf, cls in result:  # x1, y1, x2, y2, confidence, class
-            x1, y1, x2, y2 = map(int, box)
-            label = f"{model.names[int(cls)]} {conf:.2f}"
-            # Draw bounding box and label on the frame
-            cls = int(cls.item())
-            if cls not in basic_colors.keys():
-                cls = "default"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), basic_colors.get(cls).bbox, 1)
-            cv2.putText(
-                frame,
-                label,
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
-                basic_colors.get(cls).bbox,
-                2,
-            )
-
     def initialize_video_writer(
         self, frame: np.ndarray, output_path, fps=20.0
     ) -> cv2.VideoWriter:
@@ -192,12 +166,18 @@ class DetectCategory:
         self, results: np.array, searched_category: list[int]
     ) -> Tuple[bool, str]:
         # if have empty prediction
-        result = next(iter(results))
-        if not len(result):
+
+        if not len(results):
             return (None, None)
-        class_ids = result.boxes.cls.numpy()
+        class_ids = results.boxes.cls.numpy()
         category_recognition_bool: bool = False
-        category_recognition_array: list[bool] = np.isin(searched_category, class_ids)
+        try:
+            category_recognition_array: list[bool] = np.isin(
+                searched_category, class_ids
+            )
+        except Exception as err:
+            logger.error(f"{err}", exc_info=True)
+
         category_was_detected: bool = any(category_recognition_array)
         category_detected: np.array = np.array(searched_category)[
             category_recognition_array
@@ -205,10 +185,18 @@ class DetectCategory:
         if category_was_detected:
             category_recognition_bool = True
             if DEBUG:
-                print("debug")
-                # logger.debug(
-                #     f"{category_maper.get(next(iter(category_detected))).upper()} score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)} file: {VIDEO_PATH if VIDEO_PATH else CAMERA_IP_ADDR}"
-                # )
+                conf = results.boxes.conf.numpy()
+                conf: float | None = next(
+                    iter(
+                        conf[
+                            np.where(results.boxes.cls.numpy() == category_detected)[0]
+                        ].tolist()
+                    ),
+                    None,
+                )
+                logger.debug(
+                    f"{category_maper.get(next(iter(category_detected))).upper()} score: {conf} file: {VIDEO_PATH if VIDEO_PATH else CAMERA_IP_ADDR}"
+                )
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(
@@ -258,11 +246,10 @@ class DetectCategory:
                 verbose=False,
                 device=device if GPU_ON else "cpu",
             )
+            results = next(iter(results))
 
             if RECORD_VIDEO and DRAW_BOXES:
-                self.draw_boxes_on_frame_v8(
-                    frame=frame, results=results, searched_cls=CATEGORIES_TO_SEARCH
-                )
+                self.draw_boxes_on_frame_v8(frame=frame, results=results)
 
             is_detected = False
             if CATEGORIES_TO_SEARCH:
@@ -302,7 +289,7 @@ class DetectCategory:
                         self.recording_flag = False
 
             # Draw bounding boxes on the frame
-            im_bgr = next(iter(results)).plot(conf=True)
+            im_bgr = results.plot(conf=True)
             im_rgb = Image.fromarray(im_bgr[..., ::-1])
 
             annotated_frame = np.squeeze(im_rgb)
