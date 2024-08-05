@@ -189,14 +189,15 @@ class DetectCategory:
         return video_writer
 
     def category_is_detected(
-        self, predictions: np.array, searched_category: list[int]
+        self, results: np.array, searched_category: list[int]
     ) -> Tuple[bool, str]:
         # if have empty prediction
-        if not len(predictions):
+        result = next(iter(results))
+        if not len(result):
             return (None, None)
-        pred_np = predictions[:, 4:]
+        class_ids = result.boxes.cls.numpy()
         category_recognition_bool: bool = False
-        category_recognition_array: list[bool] = np.isin(searched_category, pred_np)
+        category_recognition_array: list[bool] = np.isin(searched_category, class_ids)
         category_was_detected: bool = any(category_recognition_array)
         category_detected: np.array = np.array(searched_category)[
             category_recognition_array
@@ -204,9 +205,10 @@ class DetectCategory:
         if category_was_detected:
             category_recognition_bool = True
             if DEBUG:
-                logger.debug(
-                    f"{category_maper.get(next(iter(category_detected))).upper()} score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)} file: {VIDEO_PATH if VIDEO_PATH else CAMERA_IP_ADDR}"
-                )
+                print("debug")
+                # logger.debug(
+                #     f"{category_maper.get(next(iter(category_detected))).upper()} score: {round(pred_np[pred_np[:,1] == next(iter(category_detected))][0][0], 3)} file: {VIDEO_PATH if VIDEO_PATH else CAMERA_IP_ADDR}"
+                # )
         if category_recognition_bool:
             if not self.recording_flag:
                 detected_category_name = category_maper.get(
@@ -264,12 +266,12 @@ class DetectCategory:
 
             is_detected = False
             if CATEGORIES_TO_SEARCH:
-                if not GPU_ON:
-                    predictions = results.xyxy[0].numpy()
-                else:
-                    predictions = np.array(results.xyxy[0].tolist())
+                # if not GPU_ON:
+                #     predictions = results.xyxy[0].numpy()
+                # else:
+                #     predictions = np.array(results.xyxy[0].tolist())
                 is_detected, category_name = self.category_is_detected(
-                    predictions, CATEGORIES_TO_SEARCH
+                    results, CATEGORIES_TO_SEARCH
                 )
                 if category_name:
                     last_detected_category_name = category_name
