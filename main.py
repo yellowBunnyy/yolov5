@@ -129,9 +129,14 @@ class DetectCategory:
     def draw_boxes_on_frame_v8(self, results, frame):
         if not len(results):
             return
-        boxes = results.boxes.xyxy.numpy()  # Get the bounding box coordinates
-        confidences = results.boxes.conf.numpy()  # Get the confidence scores
-        class_ids = results.boxes.cls.numpy()
+        if GPU_ON:
+            boxes = results.boxes.xyxy.cpu()
+            confidences = results.boxes.conf.cpu()
+            class_ids = results.boxes.cls.cpu()
+        else:
+            boxes = results.boxes.xyxy.numpy()  # Get the bounding box coordinates
+            confidences = results.boxes.conf.numpy()  # Get the confidence scores
+            class_ids = results.boxes.cls.numpy()
         class_names = model.names
         # Draw boxes on the frame
         for box, confidence, cls in zip(boxes, confidences, class_ids):
@@ -169,7 +174,10 @@ class DetectCategory:
 
         if not len(results):
             return (None, None)
-        class_ids = results.boxes.cls.numpy()
+        if GPU_ON:
+            class_ids = results.boxes.cls.cpu()
+        else:
+            class_ids = results.boxes.cls.numpy()
         category_recognition_bool: bool = False
         try:
             category_recognition_array: list[bool] = np.isin(
@@ -185,13 +193,14 @@ class DetectCategory:
         if category_was_detected:
             category_recognition_bool = True
             if DEBUG:
-                conf = results.boxes.conf.numpy()
+                if GPU_ON:
+                    conf = results.boxes.conf.cpu()
+                    clases = results.boxes.cls.cpu()
+                else:
+                    conf = results.boxes.conf.numpy()
+                    clases = results.boxes.cls.numpy()
                 conf: float | None = next(
-                    iter(
-                        conf[
-                            np.where(results.boxes.cls.numpy() == category_detected)[0]
-                        ].tolist()
-                    ),
+                    iter(conf[np.where(clases == category_detected)[0]].tolist()),
                     None,
                 )
                 logger.debug(
@@ -253,10 +262,7 @@ class DetectCategory:
 
             is_detected = False
             if CATEGORIES_TO_SEARCH:
-                # if not GPU_ON:
-                #     predictions = results.xyxy[0].numpy()
-                # else:
-                #     predictions = np.array(results.xyxy[0].tolist())
+
                 is_detected, category_name = self.category_is_detected(
                     results, CATEGORIES_TO_SEARCH
                 )
