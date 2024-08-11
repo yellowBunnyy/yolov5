@@ -56,6 +56,8 @@ logger.info("Starting!!")
 # endregion
 
 DEBUG: bool = bool(os.getenv("debug".upper(), False))
+if DEBUG:
+    logger.info(f"Debug on: {DEBUG}.")
 RECORD_VIDEO: bool = bool(os.getenv("record_video".upper(), False))
 logger.info(f"Record Video: {RECORD_VIDEO}")
 # region DEVICE
@@ -255,8 +257,9 @@ class DetectCategory:
                 verbose=False,
                 device=device if GPU_ON else "cpu",
             )
-            results = next(iter(results))
 
+            results = next(iter(results))
+            results.save()
             if RECORD_VIDEO and DRAW_BOXES:
                 self.draw_boxes_on_frame_v8(frame=frame, results=results)
 
