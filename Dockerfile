@@ -35,11 +35,11 @@ ENV SHOW_FPS=True
 ENV GPU_ON=$GPU
 ENV CONF_THRESHOLD=0.6
 ENV DEBUG=True
-ENV OUTPUT_LOG_PATH=/workspace
+ENV OUTPUT_LOG_PATH=/workspaces/yolov5
 
 
 # Expose the port the app runs on
 EXPOSE 8000
 
 # Run the FastAPI application with uvicorn
-# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
